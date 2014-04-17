@@ -121,8 +121,14 @@ static int mptcp_dont_reinject_skb(struct tcp_sock *tp, struct sk_buff *skb)
 {
 	/* If the skb has already been enqueued in this sk, try to find
 	 * another one.
+	 * An exception is a DATA_FIN without data. These ones are not
+	 * reinjected at the subflow-level as they do not consume
+	 * subflow-sequence-number space.
 	 */
 	return skb &&
+		/* We either have a data_fin with data or not a data_fin */
+		((mptcp_is_data_fin(skb) && TCP_SKB_CB(skb)->end_seq - TCP_SKB_CB(skb)->seq  > 1) ||
+		!mptcp_is_data_fin(skb)) &&
 		/* Has the skb already been enqueued into this subsocket? */
 		mptcp_pi_to_flag(tp->mptcp->path_index) & TCP_SKB_CB(skb)->path_mask;
 }
@@ -138,6 +144,11 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 					  struct sk_buff *skb,
 					  unsigned int *mss_now)
 {
+	bool ind=false;
+	bool ind2=false;
+	int i;*
+	int *env;//tableau qui teste sur la socket a deja envoyé
+	struct sock *tableau;//tableau qui teste les meilleures sockets
 	struct mptcp_cb *mpcb = tcp_sk(meta_sk)->mpcb;
 	struct sock *sk, *bestsk = NULL, *lowpriosk = NULL, *backupsk = NULL;
 	unsigned int mss = 0, mss_lowprio = 0, mss_backup = 0;
@@ -161,7 +172,8 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 				return sk;
 		}
 	}
-
+	env=malloc(mpcb->cnt_subflows*sizeof(int));
+	tableau=malloc(mpcb->cnt_subflows*sizeof(struct sock));
 	/* First, find the best subflow */
 	mptcp_for_each_sk(mpcb, sk) {
 		struct tcp_sock *tp = tcp_sk(sk);
@@ -172,7 +184,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 
 		if ((tp->mptcp->rcv_low_prio || tp->mptcp->low_prio) &&
 		    tp->srtt < lowprio_min_time_to_peer) {
-
+			
 			if (!mptcp_is_available(sk, skb, &this_mss))
 				continue;
 
@@ -195,9 +207,48 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 				backupsk = sk;
 				continue;
 			}
-
+			/*######  Début Round Robin  ######*/
+			/*A faire ici le code pour l'ordonnanceur Round Robin*/
+			int indice=0;
+			struct tcp_sock *ini = tcp_sk(tableau[0]);
+			/*on remplit le tableau et remplace en fonction du RTT*/
+			for(i=1; i<mpcb->cnt_suflows; i++){
+				struct tcp_sock *temp = tcp_sk(tableau[i]);
+				if((ini->srtt)>(temp->srtt) || (temp->srtt)==0){
+					ini=tcp_sk(tableau[i]);
+					env[i]=0;
+					indice=i;
+				}
+			}
+			/*compare la socket et la case du tableau ayant le plus 			grand RTT*/ 
+			if((tp->srtt)<(ini->srtt)){
+				tableau[indice]=sk;
+			}
+			/*
+			for(i=0; i<mpcb->cnt_subflows; i++){
+				if(env[i]==0){
+					ind=true;
+				}
+			}
+			if(ind==false){
+				for(i=0; i<mpcb->cnt_subflows; i++){
+					env[i]=0;
+				}
+			}
+			i=0;
+			int num;
+			do{
+				if(env[i]==0){
+					num=i;
+					ind2=true;
+				}
+			i++
+			}while(ind2!=true && i<mpcb->cnt_subflows);
+			
+			env[num]=1;
+			/*######  Fin Round Robin  ######*/			
 			min_time_to_peer = tp->srtt;
-			bestsk = sk;
+			/*bestsk = tableau[num];*/
 			mss = this_mss;
 		}
 	}
@@ -206,7 +257,31 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 		mss = mss_lowprio;
 		sk = lowpriosk;
 	} else if (bestsk) {
-		sk = bestsk;
+			/*regarde si toutes les cases du tableaux sont à 1   				(déja envoyés)*/
+			for(i=0; i<mpcb->cnt_subflows; i++){
+				if(env[i]==0){
+					ind=true;
+				}
+			}
+			/*Si toutes les sockets sont à 1 on repasse tout à 0*/
+			if(ind==false){
+				for(i=0; i<mpcb->cnt_subflows; i++){
+					env[i]=0;
+				}
+			}
+			i=0;
+			int num;
+			/*permet de trouver la socket sur laquel on va envoyé le 				segment*/
+			do{
+				if(env[i]==0){
+					num=i;
+					ind2=true;
+				}
+			i++
+			}while(ind2!=true && i<mpcb->cnt_subflows);
+			/*passe à 1 car il envoie un segment*/
+			env[num]=1;
+		sk = tableau[num];
 	} else if (backupsk){
 		/* It has been sent on all subflows once - let's give it a
 		 * chance again by restarting its pathmask.
@@ -222,6 +297,8 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 
 	return sk;
 }
+
+
 
 static struct mp_dss *mptcp_skb_find_dss(const struct sk_buff *skb)
 {
@@ -484,7 +561,6 @@ static void mptcp_combine_dfin(struct sk_buff *skb, struct sock *meta_sk,
 
 	/* In infinite mapping we always try to combine */
 	if (mpcb->infinite_mapping_snd && tcp_close_state(subsk)) {
-		subsk->sk_shutdown |= SEND_SHUTDOWN;
 		TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_FIN;
 		return;
 	}
@@ -511,10 +587,8 @@ static void mptcp_combine_dfin(struct sk_buff *skb, struct sock *meta_sk,
 	 */
 	all_acked = (meta_tp->snd_una == (meta_tp->write_seq - 1));
 
-	if ((all_empty || all_acked) && tcp_close_state(subsk)) {
-		subsk->sk_shutdown |= SEND_SHUTDOWN;
+	if ((all_empty || all_acked) && tcp_close_state(subsk))
 		TCP_SKB_CB(skb)->tcp_flags |= TCPHDR_FIN;
-	}
 }
 
 static struct sk_buff *mptcp_skb_entail(struct sock *sk, struct sk_buff *skb,
@@ -1711,8 +1785,7 @@ struct sk_buff *mptcp_next_segment(struct sock *meta_sk, int *reinject)
 	} else {
 		skb = tcp_send_head(meta_sk);
 
-		if (!skb && meta_sk->sk_socket &&
-		    test_bit(SOCK_NOSPACE, &meta_sk->sk_socket->flags) &&
+		if (!skb && meta_sk->sk_write_pending &&
 		    sk_stream_wspace(meta_sk) < sk_stream_min_wspace(meta_sk)) {
 			struct sock *subsk = get_available_subflow(meta_sk, NULL, NULL);
 			if (!subsk)
@@ -1793,7 +1866,6 @@ void mptcp_send_active_reset(struct sock *meta_sk, gfp_t priority)
 	/* We are in infinite mode - just send a reset */
 	if (mpcb->infinite_mapping_snd || mpcb->infinite_mapping_rcv) {
 		tcp_send_active_reset(sk, priority);
-		mptcp_sub_force_close(sk);
 		return;
 	}
 

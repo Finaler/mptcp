@@ -132,20 +132,27 @@ static int mptcp_dont_reinject_skb(struct tcp_sock *tp, struct sk_buff *skb)
  * PRES MPTCP ROUND-ROBIN
  */
 
-struct selected_sk *ssk = (struct selected_sk *)malloc(sizeof(struct selected_sk *));
+struct selected_sk *ssk = (struct selected_sk *)malloc(sizeof(struct selected_sk));
 ssk->size = 0;
 ssk->send_wnd = 0;
 
-/* remove sk if NULL / unavailable */
+/* remove sk if NULL(0) / unavailable */
 void ssk_checkup(struct sk_buff *skb){
   int this_mss, i;
+  struct tcp_sock *tp;
   for(i = 0; i < ssk->size; i++){
-    if(ssk->sk[i] == NULL){
+    tp = tcp_sk(&ssk->sk[i]);
+    if(ssk->sk[i] == 0){ //NULL
       ssk->sk[i] = ssk->sk[ssk->size-1];
       ssk->size--;
     }
     if (!mptcp_is_available(&ssk->sk[i], skb, &this_mss)){
-      ssk->sk[i] = NULL;
+      ssk->sk[i] = 0; //NULL
+      ssk->sk[i] = ssk->sk[ssk->size-1];
+      ssk->size--;
+    }
+    if (mptcp_dont_reinject_skb(tp, skb)) {
+      ssk->sk[i] = 0; //NULL
       ssk->sk[i] = ssk->sk[ssk->size-1];
       ssk->size--;
     }
@@ -174,7 +181,7 @@ u32 ssk_insertion_sort(){
 int belongto_ssk(struct sock *sk){
   int i;
   for(i = 0; i < ssk->size; i++){
-    if(ssk->sk[i] == *sk)
+    if(ssk->sk[i] == (struct sock)sk)
       return 1;
   }
   return 0;
@@ -185,11 +192,13 @@ struct sock *get_available_subflow(struct sock *meta_sk,
 				   unsigned int *mss_now)
 {
   struct mptcp_cb *mpcb = tcp_sk(meta_sk)->mpcb;
-  struct sock *sk;// *bestsk = NULL, *lowpriosk = NULL, *backupsk = NULL;
+  struct sock *sk, *bestsk = NULL;// *lowpriosk = NULL, *backupsk = NULL;
   //unsigned int mss = 0, mss_lowprio = 0, mss_backup = 0;
   //u32 min_time_to_peer = 0xffffffff, lowprio_min_time_to_peer = 0xffffffff;
   //int cnt_backups = 0;
-  
+  int this_mss;
+  u32 max_value;  
+
   /* if there is only one subflow, bypass the scheduling function */
   if (mpcb->cnt_subflows == 1) {
     bestsk = (struct sock *)mpcb->connection_list;
@@ -209,8 +218,7 @@ struct sock *get_available_subflow(struct sock *meta_sk,
   }
   
   /* Find the K_BEST_SK */
-  int this_mss;
-  u32 max_value;
+
   /* Si le le sched est deja calculé */
   if(ssk->send_wnd){
     ssk->send_wnd--;
@@ -224,41 +232,40 @@ struct sock *get_available_subflow(struct sock *meta_sk,
     }
     /*MaJ chemins */
     mptcp_for_each_sk(mpcb, sk){
-      /*si sk deja dans le tableau */
+      struct tcp_sock *tp = tcp_sk(sk);
+
       if(belongto_ssk(sk))
 	continue;
+      if (!mptcp_is_available(sk, skb, &this_mss))
+	continue;
+      if (mptcp_dont_reinject_skb(tp, skb))
+	continue;
+      
+      /* test le rtt */
+      if(tp->srtt > max_value){
+	/* s'il n'y a pas k chemins occupés */
+	if(ssk->size < (int)K_BEST_SK){
+	  max_value = tp->srtt;
+	  ssk->sk[ssk->size] = (struct sock)sk;
+	  ssk->size++;
+	}
+	continue;
+      }
+      else if(ssk->size < (int)K_BEST_SK){
+	ssk->sk[ssk->size] = (struct sock)sk;
+	ssk->size++;
+      }
+      /* remplace un sk */
       else{
-	if (!mptcp_is_available(sk, skb, &this_mss))
-	  continue;
-	struct tcp_sock *tp = tcp_sk(sk);
-	/* test le rtt */
-	if(tp->srtt > max_value){
-	  /* s'il n'y a pas k chemins occupés */
-	  if(ssk->size < K_BEST_SK){
-	    max_value = tp->srtt;
-	    ssk->sk[ssk->size] = (struct sock)sk;
-	    ssk->size++;
-	  }
-	  continue;
-	}
-	else{
-	  if(ssk->size < K_BEST_SK){
-	    ssk->sk[ssk->size] = (struct sock)sk;
-	    ssk->size++;
-	  }
-	  /* remplace un sk */
-	  else{
-	    ssk_insertion_sort();
-	    ssk->sk[0] = (struct sock)sk;
-	    ssk->size++;
-	  }
-	}
+	max_value = ssk_insertion_sort();
+	ssk->sk[0] = (struct sock)sk;
+	ssk->size++;
       }
     }
-    ssk_insertion_sort();
-    ssk->send_wnd = ssk->size-1;
-    return &ssk->sk[ssk->send_wnd];
   }
+  ssk_insertion_sort();
+  ssk->send_wnd = ssk->size-1;
+  return &ssk->sk[ssk->send_wnd];
 }
 
 
@@ -349,7 +356,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 	} else if (bestsk) {
 		sk = bestsk;
 	} else if (backupsk){
-		/* It has been sent on all subflows once - let's give it a
+		* It has been sent on all subflows once - let's give it a
 		 * chance again by restarting its pathmask.
 		 
 		if (skb)

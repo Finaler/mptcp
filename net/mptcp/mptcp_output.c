@@ -132,9 +132,9 @@ static int mptcp_dont_reinject_skb(struct tcp_sock *tp, struct sk_buff *skb)
  * PRES MPTCP ROUND-ROBIN
  */
 
-struct selected_sk *ssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
-ssk->size = 0;
-ssk->send_wnd = 0;
+//struct selected_sk *ssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
+//ssk->size = 0;
+//ssk->send_wnd = 0;
 
 /* remove sk if NULL(0) / unavailable */
 void ssk_checkup(struct sk_buff *skb){

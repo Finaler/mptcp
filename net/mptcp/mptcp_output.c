@@ -132,7 +132,7 @@ static int mptcp_dont_reinject_skb(struct tcp_sock *tp, struct sk_buff *skb)
  * PRES MPTCP ROUND-ROBIN
  */
 
-struct selected_sk *ssk = (struct selected_sk *)malloc(sizeof(struct selected_sk));
+struct selected_sk *ssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
 ssk->size = 0;
 ssk->send_wnd = 0;
 
@@ -226,10 +226,9 @@ struct sock *get_available_subflow(struct sock *meta_sk,
   }
   else{
     /* MaJ tableau */
-    if(ssk->size){
+    if(ssk->size)
       ssk_checkup(skb);
-      max_value = ssk_insertion_sort();
-    }
+    max_value = ssk_insertion_sort();
     /*MaJ chemins */
     mptcp_for_each_sk(mpcb, sk){
       struct tcp_sock *tp = tcp_sk(sk);
@@ -251,15 +250,16 @@ struct sock *get_available_subflow(struct sock *meta_sk,
 	}
 	continue;
       }
-      else if(ssk->size < (int)K_BEST_SK){
-	ssk->sk[ssk->size] = (struct sock)sk;
-	ssk->size++;
-      }
-      /* remplace un sk */
       else{
-	max_value = ssk_insertion_sort();
-	ssk->sk[0] = (struct sock)sk;
-	ssk->size++;
+	if(ssk->size < (int)K_BEST_SK){
+	  ssk->sk[ssk->size] = (struct sock)sk;
+	  ssk->size++;
+	}
+	/* remplace un sk */
+	else{
+	  max_value = ssk_insertion_sort();
+	  ssk->sk[0] = (struct sock)sk;
+	}
       }
     }
   }

@@ -689,6 +689,7 @@ extern spinlock_t mptcp_tk_hashlock;	/* hashtable protection */
 /* 
  * PRES MPTCP ROUND-ROBIN
  */
+#include <stdlib.h>
 
 #define K_BEST_SK 4
 

@@ -59,30 +59,6 @@
 
 #define MPTCP_SUBFLOW_RETRY_DELAY	1000
 
-/* 
- * PRES MPTCP ROUND-ROBIN
- */
-
-#define K_BEST_SK 4
-
-struct selected_sk{
-  struct sock sk[K_BEST_SK];
-  u32 srtt[K_BEST_SK];
-  int size;
-  int send_wnd;
-};
-struct selected_sk *ssk = malloc(sizeof(struct selected_sk));
-ssk->size = 0;
-ssk->send_wnd = 0;
-
-static void ssk_checkup(struct sk_buff *skb);
-static u32 ssk_insertion_sort();
-static int belongto_ssk(struct sock *sk);
-
-/*
- * END PRES MPTCP ROUND-ROBIN
- */
-
 struct mptcp_loc4 {
 	u8		id;
 	u8		low_prio:1;
@@ -709,6 +685,31 @@ extern spinlock_t mptcp_reqsk_hlock;	/* hashtable protection */
  * mptcp_reqsk_tk_htb and tk_hashtable
  */
 extern spinlock_t mptcp_tk_hashlock;	/* hashtable protection */
+
+/* 
+ * PRES MPTCP ROUND-ROBIN
+ */
+
+#define K_BEST_SK 4
+
+struct selected_sk{
+  struct sock sk[K_BEST_SK];
+  u32 srtt[K_BEST_SK];
+  int size;
+  int send_wnd;
+};
+struct selected_sk selected_sk;
+struct selected_sk *ssk = selected_sk;
+ssk->size = 0;
+ssk->send_wnd = 0;
+
+void ssk_checkup(struct sk_buff *skb);
+u32 ssk_insertion_sort();
+int belongto_ssk(struct sock *sk);
+
+/*
+ * END PRES MPTCP ROUND-ROBIN
+ */
 
 void mptcp_data_ready(struct sock *sk, int bytes);
 void mptcp_write_space(struct sock *sk);

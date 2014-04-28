@@ -698,9 +698,7 @@ struct selected_sk{
   int size;
   int send_wnd;
 };
-struct selected_sk *ssk = malloc(K_BEST_SK * sizeof(struct sock) + 
-				 K_BEST_SK * sizeof(u32) +
-				 2 * sizeof(int));
+struct selected_sk *ssk = (struct selected_sk *)malloc(sizeof(struct selected_sk));
 ssk->size = 0;
 ssk->send_wnd = 0;
 

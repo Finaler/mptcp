@@ -214,7 +214,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
   /* Si le le sched est deja calculé */
   if(ssk->send_wnd){
     ssk->send_wnd--;
-    return &ssk->sk[tmp];
+    return &ssk->sk[ssk->send_wnd];
   }
   else{
     /* MaJ tableau */
@@ -256,7 +256,8 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
       }
     }
     ssk_insertion_sort();
-    ssk->send_wnd = ssk->size;
+    ssk->send_wnd = ssk->size-1;
+    return &ssk->sk[ssk->send_wnd];
   }
 }
 

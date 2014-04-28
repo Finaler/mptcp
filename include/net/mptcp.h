@@ -698,9 +698,6 @@ struct selected_sk{
   int size;
   int send_wnd;
 };
-struct selected_sk *ssk = (struct selected_sk *)malloc(sizeof(struct selected_sk *));
-ssk->size = 0;
-ssk->send_wnd = 0;
 
 void ssk_checkup(struct sk_buff *skb);
 u32 ssk_insertion_sort(void);

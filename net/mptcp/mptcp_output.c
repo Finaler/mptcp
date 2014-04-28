@@ -137,7 +137,7 @@ ssk->size = 0;
 ssk->send_wnd = 0;
 
 /* remove sk if NULL / unavailable */
-static void ssk_checkup(struct sk_buff *skb){
+void ssk_checkup(struct sk_buff *skb){
   int this_mss, i;
   for(i = 0; i < ssk->size; i++){
     if(ssk->sk[i] == NULL){
@@ -152,7 +152,7 @@ static void ssk_checkup(struct sk_buff *skb){
   }
 }
 
-static u32 ssk_insertion_sort(){
+u32 ssk_insertion_sort(){
   int i, j, k;
   struct sock tmp_sk;
   for(i = 1; i < ssk->size; i++){
@@ -171,24 +171,24 @@ static u32 ssk_insertion_sort(){
   return tcp_sk(&ssk->sk[0])->srtt;
 }
 
-static int belongto_ssk(struct sock *sk){
+int belongto_ssk(struct sock *sk){
   int i;
   for(i = 0; i < ssk->size; i++){
-    if(ssk->sk[i] == sk)
+    if(ssk->sk[i] == *sk)
       return 1;
   }
   return 0;
 }
 
-static struct sock *get_available_subflow(struct sock *meta_sk,
-					  struct sk_buff *skb,
-					  unsigned int *mss_now)
+struct sock *get_available_subflow(struct sock *meta_sk,
+				   struct sk_buff *skb,
+				   unsigned int *mss_now)
 {
   struct mptcp_cb *mpcb = tcp_sk(meta_sk)->mpcb;
-  struct sock *sk, *bestsk = NULL, *lowpriosk = NULL, *backupsk = NULL;
-  unsigned int mss = 0, mss_lowprio = 0, mss_backup = 0;
-  u32 min_time_to_peer = 0xffffffff, lowprio_min_time_to_peer = 0xffffffff;
-  int cnt_backups = 0;
+  struct sock *sk;// *bestsk = NULL, *lowpriosk = NULL, *backupsk = NULL;
+  //unsigned int mss = 0, mss_lowprio = 0, mss_backup = 0;
+  //u32 min_time_to_peer = 0xffffffff, lowprio_min_time_to_peer = 0xffffffff;
+  //int cnt_backups = 0;
   
   /* if there is only one subflow, bypass the scheduling function */
   if (mpcb->cnt_subflows == 1) {
@@ -236,20 +236,20 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 	  /* s'il n'y a pas k chemins occupés */
 	  if(ssk->size < K_BEST_SK){
 	    max_value = tp->srtt;
-	    ssk->sk[ssk->size] = (strut sock)sk;
+	    ssk->sk[ssk->size] = (struct sock)sk;
 	    ssk->size++;
 	  }
 	  continue;
 	}
 	else{
 	  if(ssk->size < K_BEST_SK){
-	    ssk->sk[ssk->size] = (strut sock)sk;
+	    ssk->sk[ssk->size] = (struct sock)sk;
 	    ssk->size++;
 	  }
 	  /* remplace un sk */
 	  else{
 	    ssk_insertion_sort();
-	    ssk->sk[0] = (strut sock)sk;
+	    ssk->sk[0] = (struct sock)sk;
 	    ssk->size++;
 	  }
 	}
@@ -285,7 +285,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 	u32 min_time_to_peer = 0xffffffff, lowprio_min_time_to_peer = 0xffffffff;
 	int cnt_backups = 0;
 
-	/* if there is only one subflow, bypass the scheduling function 
+	   if there is only one subflow, bypass the scheduling function 
 	if (mpcb->cnt_subflows == 1) {
 		bestsk = (struct sock *)mpcb->connection_list;
 		if (!mptcp_is_available(bestsk, skb, mss_now))
@@ -293,7 +293,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 		return bestsk;
 	}
 
-	/* Answer data_fin on same subflow!!! 
+	 Answer data_fin on same subflow!!! 
 	if (meta_sk->sk_shutdown & RCV_SHUTDOWN &&
 	    skb && mptcp_is_data_fin(skb)) {
 		mptcp_for_each_sk(mpcb, sk) {
@@ -303,7 +303,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 		}
 	}
 	
-	/* First, find the best subflow 
+	 First, find the best subflow 
 	mptcp_for_each_sk(mpcb, sk) {
 		struct tcp_sock *tp = tcp_sk(sk);
 		int this_mss;

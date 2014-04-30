@@ -710,14 +710,13 @@ struct selected_sk{
   struct sock *sk;
   struct selected_sk *next;
 };
-
-
-void ssk_checkup(struct sk_buff *sbk);
-void ssk_insertion_sort();
-u32 ssk_max_srtt();
-struct selected_sk *bssk_prev();
-int belongto_ssk(struct sock *sk);
-
+/*
+static void ssk_checkup(struct sk_buff *sbk);
+static void ssk_insertion_sort(void);
+static u32 ssk_max_srtt(void);
+static struct selected_sk *bssk_prev(void);
+static int belongto_ssk(struct sock *sk);
+*/
 /*
  * END PRES MPTCP ROUND-ROBIN
  */

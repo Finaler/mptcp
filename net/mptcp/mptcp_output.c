@@ -271,12 +271,12 @@ struct sock *get_available_subflow(struct sock *meta_sk,
 */
 
 //def globale
-struct selected_sk *bssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
-struct selected_sk *ssk = bssk;
-int ssk_size = 0;
-int ssk_send_wnd = 0;
+static struct selected_sk *bssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
+static struct selected_sk *ssk = bssk;
+static int ssk_size = 0;
+static int ssk_send_wnd = 0;
 
-void ssk_checkup(struct sk_buff *skb){
+static void ssk_checkup(struct sk_buff *skb){
   int this_mss;
   int size = ssk_size;
   struct selected_sk *it, *prev;
@@ -286,14 +286,14 @@ void ssk_checkup(struct sk_buff *skb){
   for(it = bssk; size; it = it->next, size--){
     if(it->sk == NULL){
       prev->next = it->next;
-      free(it);
+      kfree(it);
       it = prev->next;
       ssk_size--;
       continue;
     }
     if (!mptcp_is_available(it->sk, skb, &this_mss)){
       prev->next = it->next;
-      free(it);
+      kfree(it);
       it = prev->next;
       ssk_size--;
       continue;
@@ -301,7 +301,7 @@ void ssk_checkup(struct sk_buff *skb){
     tp = tcp_sk(it->sk);
     if (mptcp_dont_reinject_skb(tp, skb)) {
       prev->next = it->next;
-      free(it);
+      kfree(it);
       it = prev->next;
       ssk_size--;
       continue;
@@ -309,7 +309,7 @@ void ssk_checkup(struct sk_buff *skb){
   }
 }
 
-void ssk_insertion_sort(){
+static void ssk_insertion_sort(){
   struct selected_sk *it1, *it2, *it3, *tmp1, *tmp2;
   int size1 = ssk_size, size2 = ssk_size;
   for(it1 = bssk->next; size1; it1 = it1->next, size1--){
@@ -330,7 +330,7 @@ void ssk_insertion_sort(){
   } 
 }
 
-u32 ssk_max_srtt(){
+static u32 ssk_max_srtt(){
   if(!bssk)
     return 0;
   struct selected_sk *it;
@@ -340,7 +340,7 @@ u32 ssk_max_srtt(){
   return tcp_sk(it->sk)->srtt;
 }
 
-struct selected_sk *bssk_prev(){
+static struct selected_sk *bssk_prev(){
   struct selected_sk *it;
   for(it = bssk; it->next != bssk; it = it->next){
     ;
@@ -348,7 +348,7 @@ struct selected_sk *bssk_prev(){
   return it;
 }
 
-int belongto_ssk(struct sock *sk){
+static int belongto_ssk(struct sock *sk){
   int size = ssk_size;
   struct selected_sk *it;
   for(it = bssk; size; it = it->next, size--){
@@ -358,7 +358,7 @@ int belongto_ssk(struct sock *sk){
   return 0;
 }
 
-struct sock *get_available_subflow(struct sock *meta_sk,
+static struct sock *get_available_subflow(struct sock *meta_sk,
 				   struct sk_buff *skb,
 				   unsigned int *mss_now)
 {

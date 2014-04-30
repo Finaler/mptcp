@@ -405,9 +405,11 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
   }
   
   // MaJ tableau
-  if(ssk_size)
+  if(ssk_size){
     ssk_checkup(skb);
-  max_value = ssk_max_srrt();
+    ssk_insertion_sort(void);
+  }
+  max_value = ssk_max_srrt(void);
   // MaJ chemins
   mptcp_for_each_sk(mpcb, sk){
     tp = tcp_sk(sk);

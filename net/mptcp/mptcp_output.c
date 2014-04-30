@@ -270,13 +270,7 @@ struct sock *get_available_subflow(struct sock *meta_sk,
 
 */
 
-//def globale
-static struct selected_sk *bssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
-static struct selected_sk *ssk = bssk;
-static int ssk_size = 0;
-static int ssk_send_wnd = 0;
-
-static void ssk_checkup(struct sk_buff *skb){
+static void ssk_checkup(struct sk_buff *skb, struct selected_sk *bssk, int ssk_size){
   int this_mss;
   int size = ssk_size;
   struct selected_sk *it, *prev;
@@ -309,7 +303,7 @@ static void ssk_checkup(struct sk_buff *skb){
   }
 }
 
-static void ssk_insertion_sort(void){
+static void ssk_insertion_sort(struct selected_sk *bssk, int ssk_size){
   struct selected_sk *it1, *it2, *it3, *tmp1, *tmp2;
   int size1 = ssk_size, size2 = ssk_size;
   for(it1 = bssk->next; size1; it1 = it1->next, size1--){
@@ -331,7 +325,7 @@ static void ssk_insertion_sort(void){
   }
 }
 
-static u32 ssk_max_srtt(void){
+static u32 ssk_max_srtt(struct selected_sk *bssk){
   struct selected_sk *it;
   if(!bssk)
     return 0;
@@ -341,7 +335,7 @@ static u32 ssk_max_srtt(void){
   return tcp_sk(it->sk)->srtt;
 }
 
-static struct selected_sk *bssk_prev(void){
+static struct selected_sk *bssk_prev(struct selected_sk *bssk){
   struct selected_sk *it;
   for(it = bssk; it->next != bssk; it = it->next){
     ;
@@ -349,7 +343,7 @@ static struct selected_sk *bssk_prev(void){
   return it;
 }
 
-static int belongto_ssk(struct sock *sk){
+static int belongto_ssk(struct sock *sk, struct selected_sk *bssk, int ssk_size){
   int size = ssk_size;
   struct selected_sk *it;
   for(it = bssk; size; it = it->next, size--){
@@ -363,6 +357,11 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 					  struct sk_buff *skb,
 					  unsigned int *mss_now)
 {
+  static struct selected_sk *bssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
+  static struct selected_sk *ssk = bssk;
+  static int ssk_size = 0;
+  static int ssk_send_wnd = 0;
+
   struct mptcp_cb *mpcb = tcp_sk(meta_sk)->mpcb;
   struct sock *sk, *bestsk = NULL, *tmp_sk;// *lowpriosk = NULL, *backupsk = NULL;
   //unsigned int mss = 0, mss_lowprio = 0, mss_backup = 0;
@@ -406,15 +405,15 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
   
   // MaJ tableau
   if(ssk_size){
-    ssk_checkup(skb);
-    ssk_insertion_sort(void);
+    ssk_checkup(skb, bssk, ssk_size);
+    ssk_insertion_sort(bssk, ssk_size);
   }
-  max_value = ssk_max_srtt(void);
+  max_value = ssk_max_srtt(bssk);
   // MaJ chemins
   mptcp_for_each_sk(mpcb, sk){
     tp = tcp_sk(sk);
     
-    if(belongto_ssk(sk))
+    if(belongto_ssk(sk, bssk, ssk_size))
       continue;
     if (!mptcp_is_available(sk, skb, &this_mss))
       continue;

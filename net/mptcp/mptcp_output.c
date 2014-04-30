@@ -369,7 +369,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
   //u32 min_time_to_peer = 0xffffffff, lowprio_min_time_to_peer = 0xffffffff;
   //int cnt_backups = 0;
   struct selected_sk *tmp_ssk, *tmp2_ssk, *it;
-  struct tcp_sock *tp
+  struct tcp_sock *tp;
   int this_mss;
   u32 max_value;
 
@@ -395,7 +395,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 
   // Si le le sched est deja calculé
   if(ssk_send_wnd){
-    while(ssk->sk == NULL && ssk->sk != bssk){
+    while(ssk->sk == NULL && ssk->sk != bssk->sk){
       ssk = ssk->next;
       ssk_send_wnd--;
     }
@@ -424,7 +424,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
       // s'il n'y a pas K chemins occupés
       if(ssk_size < (int)K_BEST_SK){
         max_value = tp->srtt;
-	tmp_ssk = (struct selected_sk *)kmalloc(sizeof(selected_sk), GFP_ATOMIC);
+	tmp_ssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
 	tmp_ssk->sk = sk;
 	tmp_ssk->next = bssk;
 	tmp2_ssk = bssk_prev();
@@ -455,7 +455,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
       }
       // remplace un sk
       else{
-        if(tcp_sk(sk)->srtt < tcp_sk(bssk)->srtt){
+        if(tcp_sk(sk)->srtt < tcp_sk(bssk->sk)->srtt){
 	  tmp_ssk = bssk_prev();
 	  tmp_ssk->sk = sk;
 	  bssk = tmp_ssk;

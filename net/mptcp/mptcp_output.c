@@ -309,7 +309,7 @@ static void ssk_checkup(struct sk_buff *skb){
   }
 }
 
-static void ssk_insertion_sort(){
+static void ssk_insertion_sort(void){
   struct selected_sk *it1, *it2, *it3, *tmp1, *tmp2;
   int size1 = ssk_size, size2 = ssk_size;
   for(it1 = bssk->next; size1; it1 = it1->next, size1--){
@@ -327,20 +327,21 @@ static void ssk_insertion_sort(){
 	it1->next = it2;
 	tmp1->next = it1;
       }
-  } 
+    } 
+  }
 }
 
-static u32 ssk_max_srtt(){
+static u32 ssk_max_srtt(void){
+  struct selected_sk *it;
   if(!bssk)
     return 0;
-  struct selected_sk *it;
   for(it = bssk; it->next != bssk; it = it->next){
     ;
   }
   return tcp_sk(it->sk)->srtt;
 }
 
-static struct selected_sk *bssk_prev(){
+static struct selected_sk *bssk_prev(void){
   struct selected_sk *it;
   for(it = bssk; it->next != bssk; it = it->next){
     ;

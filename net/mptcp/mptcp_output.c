@@ -409,7 +409,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
     ssk_checkup(skb);
     ssk_insertion_sort(void);
   }
-  max_value = ssk_max_srrt(void);
+  max_value = ssk_max_srtt(void);
   // MaJ chemins
   mptcp_for_each_sk(mpcb, sk){
     tp = tcp_sk(sk);

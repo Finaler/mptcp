@@ -270,6 +270,12 @@ struct sock *get_available_subflow(struct sock *meta_sk,
 
 */
 
+//def globale
+struct selected_sk *bssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
+struct selected_sk *ssk = bssk;
+int ssk_size = 0;
+int ssk_send_wnd = 0;
+
 void ssk_checkup(struct sk_buff *skb){
   int this_mss;
   int size = ssk_size;

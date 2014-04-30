@@ -710,10 +710,7 @@ struct selected_sk{
   struct sock *sk;
   struct selected_sk *next;
 };
-struct selected_sk *bssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
-struct selected_sk *ssk = bssk;
-int ssk_size = 0;
-int ssk_send_wnd = 0;
+
 
 void ssk_checkup(struct sk_buff *sbk);
 void ssk_insertion_sort();

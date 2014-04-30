@@ -132,33 +132,32 @@ static int mptcp_dont_reinject_skb(struct tcp_sock *tp, struct sk_buff *skb)
  * PRES MPTCP ROUND-ROBIN
  */
 
-//struct selected_sk *ssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
-//ssk->size = 0;
-//ssk->send_wnd = 0;
+/*
 
-/* remove sk if NULL(0) / unavailable */
+// remove sk if NULL(0) / unavailable
 void ssk_checkup(struct sk_buff *skb){
   int this_mss, i;
   struct tcp_sock *tp;
   for(i = 0; i < ssk->size; i++){
     tp = tcp_sk(&ssk->sk[i]);
-    if(ssk->sk[i] == 0){ //NULL
+    if(ssk->sk[i] == 0){
       ssk->sk[i] = ssk->sk[ssk->size-1];
       ssk->size--;
     }
     if (!mptcp_is_available(&ssk->sk[i], skb, &this_mss)){
-      ssk->sk[i] = 0; //NULL
+      ssk->sk[i] = 0;
       ssk->sk[i] = ssk->sk[ssk->size-1];
       ssk->size--;
     }
     if (mptcp_dont_reinject_skb(tp, skb)) {
-      ssk->sk[i] = 0; //NULL
+      ssk->sk[i] = 0;
       ssk->sk[i] = ssk->sk[ssk->size-1];
       ssk->size--;
     }
   }
 }
 
+// tri insertion, renvoie plus grand srtt
 u32 ssk_insertion_sort(){
   int i, j, k;
   struct sock tmp_sk;
@@ -166,10 +165,10 @@ u32 ssk_insertion_sort(){
     for(j = 0; j < i; j++){
       if(tcp_sk(&ssk->sk[i])->srtt > tcp_sk(&ssk->sk[j])->srtt){
 	tmp_sk = ssk->sk[i];
-	/* move right */
+	// move right 
 	for(k = i; k >= j; k--)
 	  ssk->sk[k] = ssk->sk[k-1];
-	/* replace */
+	// replace
 	ssk->sk[j] = tmp_sk;
 	break;
       }
@@ -177,6 +176,7 @@ u32 ssk_insertion_sort(){
   }
   return tcp_sk(&ssk->sk[0])->srtt;
 }
+
 
 int belongto_ssk(struct sock *sk){
   int i;
@@ -199,7 +199,7 @@ struct sock *get_available_subflow(struct sock *meta_sk,
   int this_mss;
   u32 max_value;  
 
-  /* if there is only one subflow, bypass the scheduling function */
+  // if there is only one subflow, bypass the scheduling function
   if (mpcb->cnt_subflows == 1) {
     bestsk = (struct sock *)mpcb->connection_list;
     if (!mptcp_is_available(bestsk, skb, mss_now))
@@ -207,7 +207,7 @@ struct sock *get_available_subflow(struct sock *meta_sk,
     return bestsk;
   }
   
-  /* Answer data_fin on same subflow!!! */
+  // Answer data_fin on same subflow!!!
   if (meta_sk->sk_shutdown & RCV_SHUTDOWN &&
       skb && mptcp_is_data_fin(skb)) {
     mptcp_for_each_sk(mpcb, sk) {
@@ -217,19 +217,19 @@ struct sock *get_available_subflow(struct sock *meta_sk,
     }
   }
   
-  /* Find the K_BEST_SK */
+  // Find the K_BEST_SK
 
-  /* Si le le sched est deja calculé */
+  // Si le le sched est deja calculé
   if(ssk->send_wnd){
     ssk->send_wnd--;
     return &ssk->sk[ssk->send_wnd];
   }
   else{
-    /* MaJ tableau */
+    // MaJ tableau
     if(ssk->size)
       ssk_checkup(skb);
     max_value = ssk_insertion_sort();
-    /*MaJ chemins */
+    // MaJ chemins
     mptcp_for_each_sk(mpcb, sk){
       struct tcp_sock *tp = tcp_sk(sk);
 
@@ -240,9 +240,9 @@ struct sock *get_available_subflow(struct sock *meta_sk,
       if (mptcp_dont_reinject_skb(tp, skb))
 	continue;
       
-      /* test le rtt */
+      // test le rtt
       if(tp->srtt > max_value){
-	/* s'il n'y a pas k chemins occupés */
+	// s'il n'y a pas k chemins occupés
 	if(ssk->size < (int)K_BEST_SK){
 	  max_value = tp->srtt;
 	  ssk->sk[ssk->size] = (struct sock)sk;
@@ -255,7 +255,7 @@ struct sock *get_available_subflow(struct sock *meta_sk,
 	  ssk->sk[ssk->size] = (struct sock)sk;
 	  ssk->size++;
 	}
-	/* remplace un sk */
+	// remplace un sk
 	else{
 	  max_value = ssk_insertion_sort();
 	  ssk->sk[0] = (struct sock)sk;
@@ -268,6 +268,209 @@ struct sock *get_available_subflow(struct sock *meta_sk,
   return &ssk->sk[ssk->send_wnd];
 }
 
+*/
+
+void ssk_checkup(struct sk_buff *skb){
+  int this_mss;
+  int size = ssk_size;
+  struct selected_sk *it, *prev;
+  struct tcp_sock *tp;
+  for(prev = bssk; prev->next != bssk; prev = prev->next)
+    ;
+  for(it = bssk; size; it = it->next, size--){
+    if(it->sk == NULL){
+      prev->next = it->next;
+      free(it);
+      it = prev->next;
+      ssk_size--;
+      continue;
+    }
+    if (!mptcp_is_available(it->sk, skb, &this_mss)){
+      prev->next = it->next;
+      free(it);
+      it = prev->next;
+      ssk_size--;
+      continue;
+    }
+    tp = tcp_sk(it->sk);
+    if (mptcp_dont_reinject_skb(tp, skb)) {
+      prev->next = it->next;
+      free(it);
+      it = prev->next;
+      ssk_size--;
+      continue;
+    }
+  }
+}
+
+void ssk_insertion_sort(){
+  struct selected_sk *it1, *it2, *it3, *tmp1, *tmp2;
+  int size1 = ssk_size, size2 = ssk_size;
+  for(it1 = bssk->next; size1; it1 = it1->next, size1--){
+    for(it2 = bssk; it2 != it1; it2 = it2->next){
+      if(tcp_sk(it1->sk)->srtt < tcp_sk(it2->sk)->srtt){
+        for(it3 = bssk; size2; it3 = it3->next, size2--){
+	  if(it1 != NULL && it2 != NULL)
+	    break;
+	  if(it3->next == it2)
+	    tmp1 = it3;
+	  if(it3->next == it1)
+	    tmp2 = it3;
+        }
+	tmp2->next = it1->next;
+	it1->next = it2;
+	tmp1->next = it1;
+      }
+  } 
+}
+
+u32 ssk_max_srtt(){
+  if(!bssk)
+    return 0;
+  struct selected_sk *it;
+  for(it = bssk; it->next != bssk; it = it->next){
+    ;
+  }
+  return tcp_sk(it->sk)->srtt;
+}
+
+struct selected_sk *bssk_prev(){
+  struct selected_sk *it;
+  for(it = bssk; it->next != bssk; it = it->next){
+    ;
+  }
+  return it;
+}
+
+int belongto_ssk(struct sock *sk){
+  int size = ssk_size;
+  struct selected_sk *it;
+  for(it = bssk; size; it = it->next, size--){
+    if(sk == it->sk)
+     return 1;
+  }
+  return 0;
+}
+
+struct sock *get_available_subflow(struct sock *meta_sk,
+				   struct sk_buff *skb,
+				   unsigned int *mss_now)
+{
+  struct mptcp_cb *mpcb = tcp_sk(meta_sk)->mpcb;
+  struct sock *sk, *bestsk = NULL, *tmp_sk;// *lowpriosk = NULL, *backupsk = NULL;
+  //unsigned int mss = 0, mss_lowprio = 0, mss_backup = 0;
+  //u32 min_time_to_peer = 0xffffffff, lowprio_min_time_to_peer = 0xffffffff;
+  //int cnt_backups = 0;
+  struct selected_sk *tmp_ssk, *tmp2_ssk, *it;
+  struct tcp_sock *tp
+  int this_mss;
+  u32 max_value;
+
+  // if there is only one subflow, bypass the scheduling function
+  if (mpcb->cnt_subflows == 1) {
+    bestsk = (struct sock *)mpcb->connection_list;
+    if (!mptcp_is_available(bestsk, skb, mss_now))
+      bestsk = NULL;
+    return bestsk;
+  }
+  
+  // Answer data_fin on same subflow!!!
+  if (meta_sk->sk_shutdown & RCV_SHUTDOWN &&
+      skb && mptcp_is_data_fin(skb)) {
+    mptcp_for_each_sk(mpcb, sk) {
+      if (tcp_sk(sk)->mptcp->path_index == mpcb->dfin_path_index &&
+	  mptcp_is_available(sk, skb, mss_now))
+	return sk;
+    }
+  }
+  
+  // Find the K_BEST_SK
+
+  // Si le le sched est deja calculé
+  if(ssk_send_wnd){
+    while(ssk->sk == NULL && ssk->sk != bssk){
+      ssk = ssk->next;
+      ssk_send_wnd--;
+    }
+    tmp_ssk = ssk;
+    ssk = ssk->next;
+    return tmp_ssk->sk;
+  }
+  
+  // MaJ tableau
+  if(ssk_size)
+    ssk_checkup(skb);
+  max_value = ssk_max_srrt();
+  // MaJ chemins
+  mptcp_for_each_sk(mpcb, sk){
+    tp = tcp_sk(sk);
+    
+    if(belongto_ssk(sk))
+      continue;
+    if (!mptcp_is_available(sk, skb, &this_mss))
+      continue;
+    if (mptcp_dont_reinject_skb(tp, skb))
+      continue;
+      
+    // compare srtt
+    if(tp->srtt > max_value){
+      // s'il n'y a pas K chemins occupés
+      if(ssk_size < (int)K_BEST_SK){
+        max_value = tp->srtt;
+	tmp_ssk = (struct selected_sk *)kmalloc(sizeof(selected_sk), GFP_ATOMIC);
+	tmp_ssk->sk = sk;
+	tmp_ssk->next = bssk;
+	tmp2_ssk = bssk_prev();
+	tmp2_ssk->next = tmp_ssk;
+	ssk_size++;
+      }
+      continue;
+    }
+    else{
+      if(ssk_size < (int)K_BEST_SK){
+        tmp_ssk = (struct selected_sk *)kmalloc(sizeof(selected_sk), GFP_ATOMIC);
+        tmp_ssk->sk = sk;
+	if(tcp_sk(tmp_ssk->sk)->srtt < tcp_sk(bssk->sk)->srtt){
+	  tmp_ssk->next = bssk;
+	  tmp2_ssk = bssk_prev();
+	  tmp2_ssk->next = tmp_ssk;
+	  bssk = tmp_ssk;
+	}
+	for(it = bssk; it->next != bssk; it = it->next){
+	  if(tcp_sk(tmp_ssk->sk)->srtt > tcp_sk(it->sk)->srtt &&
+	     tcp_sk(tmp_ssk->sk)->srtt < tcp_sk(it->next->sk)->srtt){
+	    tmp_ssk->next = it->next;
+	    it->next = tmp_ssk;
+	    break;
+	  }
+	}
+	ssk_size++;
+      }
+      // remplace un sk
+      else{
+        if(tcp_sk(sk)->srtt < tcp_sk(bssk)->srtt){
+	  tmp_ssk = bssk_prev();
+	  tmp_ssk->sk = sk;
+	  bssk = tmp_ssk;
+	}
+	for(it = bssk->next; it->next != bssk; it = it->next){
+	  if(tcp_sk(sk)->srtt < tcp_sk(it->sk)->srtt){
+	    for(; it != bssk; it = it->next){
+	      tmp_sk = it->sk;
+	      it->sk = sk;
+	      sk = tmp_sk;
+	    }
+	    break;
+	  }
+	}
+	ssk_size++;
+      }
+    }
+  }
+  ssk = bssk->next;
+  ssk_send_wnd = ssk_size-1;
+  return bssk->sk;
+}
 
 /*
  * END PRES MPTCP ROUND-ROBIN

@@ -691,17 +691,32 @@ extern spinlock_t mptcp_tk_hashlock;	/* hashtable protection */
  */
 
 #define K_BEST_SK 4
-
+/*
 struct selected_sk{
   struct sock sk[K_BEST_SK];
-  u32 srtt[K_BEST_SK];
   int size;
   int send_wnd;
 };
+struct selected_sk *ssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
+ssk->size = 0;
+ssk->send_wnd = 0;
 
 void ssk_checkup(struct sk_buff *skb);
 u32 ssk_insertion_sort(void);
 int belongto_ssk(struct sock *sk);
+*/
+
+struct selected_sk{
+  struct sock *sk;
+  struct selected_sk *next;
+};
+struct selected_sk *bssk = (struct selected_sk *)kmalloc(sizeof(selected_sk), GFP_ATOMIC);
+struct selected_sk *ssk = bssk;
+int ssk_size = 0;
+int ssk_send_wnd = 0;
+
+void ssk_checkup(struct sk_buff *sbk);
+void ssk_insertion_sort();
 
 /*
  * END PRES MPTCP ROUND-ROBIN

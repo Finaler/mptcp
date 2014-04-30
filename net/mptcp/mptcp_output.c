@@ -427,10 +427,16 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
         max_value = tp->srtt;
 	tmp_ssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
 	tmp_ssk->sk = sk;
-	tmp_ssk->next = bssk;
-	tmp2_ssk = bssk_prev(bssk);
-	tmp2_ssk->next = tmp_ssk;
-	ssk_size++;
+	if(!bssk){
+	  tmp_ssk->next = tmp_ssk;
+	  bssk = tmp_ssk;
+	}
+	else{
+	  tmp_ssk->next = bssk;
+	  tmp2_ssk = bssk_prev(bssk);
+	  tmp2_ssk->next = tmp_ssk;
+	  ssk_size++;
+	}
       }
       continue;
     }

@@ -354,14 +354,14 @@ static int belongto_ssk(struct sock *sk){
   struct selected_sk *it;
   for(it = bssk; size; it = it->next, size--){
     if(sk == it->sk)
-     return 1;
+      return 1;
   }
   return 0;
 }
 
 static struct sock *get_available_subflow(struct sock *meta_sk,
-				   struct sk_buff *skb,
-				   unsigned int *mss_now)
+					  struct sk_buff *skb,
+					  unsigned int *mss_now)
 {
   struct mptcp_cb *mpcb = tcp_sk(meta_sk)->mpcb;
   struct sock *sk, *bestsk = NULL, *tmp_sk;// *lowpriosk = NULL, *backupsk = NULL;
@@ -372,7 +372,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
   struct tcp_sock *tp;
   int this_mss;
   u32 max_value;
-
+  
   // if there is only one subflow, bypass the scheduling function
   if (mpcb->cnt_subflows == 1) {
     bestsk = (struct sock *)mpcb->connection_list;
@@ -392,7 +392,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
   }
   
   // Find the K_BEST_SK
-
+  
   // Si le le sched est deja calculé
   if(ssk_send_wnd){
     while(ssk->sk == NULL && ssk->sk != bssk->sk){
@@ -418,7 +418,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
       continue;
     if (mptcp_dont_reinject_skb(tp, skb))
       continue;
-      
+    
     // compare srtt
     if(tp->srtt > max_value){
       // s'il n'y a pas K chemins occupés
@@ -435,7 +435,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
     }
     else{
       if(ssk_size < (int)K_BEST_SK){
-        tmp_ssk = (struct selected_sk *)kmalloc(sizeof(selected_sk), GFP_ATOMIC);
+        tmp_ssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
         tmp_ssk->sk = sk;
 	if(tcp_sk(tmp_ssk->sk)->srtt < tcp_sk(bssk->sk)->srtt){
 	  tmp_ssk->next = bssk;

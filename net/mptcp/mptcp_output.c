@@ -306,6 +306,8 @@ static void ssk_checkup(struct sk_buff *skb, struct selected_sk *bssk, int ssk_s
 static void ssk_insertion_sort(struct selected_sk *bssk, int ssk_size){
   struct selected_sk *it1, *it2, *it3, *tmp1, *tmp2;
   int size1 = ssk_size, size2 = ssk_size;
+  tmp1 = NULL;
+  tmp2 = NULL;
   for(it1 = bssk->next; size1; it1 = it1->next, size1--){
     for(it2 = bssk; it2 != it1; it2 = it2->next){
       if(tcp_sk(it1->sk)->srtt < tcp_sk(it2->sk)->srtt){

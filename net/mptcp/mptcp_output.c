@@ -357,8 +357,8 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 					  struct sk_buff *skb,
 					  unsigned int *mss_now)
 {
-  static struct selected_sk *bssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
-  static struct selected_sk *ssk = bssk;
+  static struct selected_sk *bssk;
+  static struct selected_sk *ssk;
   static int ssk_size = 0;
   static int ssk_send_wnd = 0;
 

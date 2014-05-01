@@ -329,7 +329,7 @@ static void ssk_insertion_sort(struct selected_sk *bssk, int ssk_size){
 
 static u32 ssk_max_srtt(struct selected_sk *bssk){
   struct selected_sk *it;
-  if(!bssk)
+  if(bssk->sk == NULL)
     return 0;
   for(it = bssk; it->next != bssk; it = it->next){
     ;
@@ -348,7 +348,7 @@ static struct selected_sk *bssk_prev(struct selected_sk *bssk){
 static int belongto_ssk(struct sock *sk, struct selected_sk *bssk, int ssk_size){
   int size = ssk_size;
   struct selected_sk *it;
-  for(it = bssk; size; it = it->next, size--){
+  for(it = bssk; size > 0; it = it->next, size--){
     if(sk == it->sk)
       return 1;
   }
@@ -359,8 +359,8 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 					  struct sk_buff *skb,
 					  unsigned int *mss_now)
 {
-  static struct selected_sk *bssk;
-  static struct selected_sk *ssk;
+  static struct selected_sk *bssk = NULL;
+  static struct selected_sk *ssk = NULL;
   static int ssk_size = 0;
   static int ssk_send_wnd = 0;
 
@@ -369,9 +369,9 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
   //unsigned int mss = 0, mss_lowprio = 0, mss_backup = 0;
   //u32 min_time_to_peer = 0xffffffff, lowprio_min_time_to_peer = 0xffffffff;
   //int cnt_backups = 0;
-  struct selected_sk *tmp_ssk, *tmp2_ssk, *it;
+  struct selected_sk *tmp_ssk, *tmp2_ssk, *tmp3_ssk, *it;
   struct tcp_sock *tp;
-  int this_mss;
+  int this_mss, size;
   u32 max_value;
   
   // if there is only one subflow, bypass the scheduling function
@@ -395,18 +395,19 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
   // Find the K_BEST_SK
   
   // Si le le sched est deja calculé
-  if(ssk_send_wnd){
-    while(ssk->sk == NULL && ssk->sk != bssk->sk){
+  while(ssk_send_wnd > 0){
+    if(ssk->sk == NULL){
       ssk = ssk->next;
       ssk_send_wnd--;
+      continue;
     }
     tmp_ssk = ssk;
     ssk = ssk->next;
     return tmp_ssk->sk;
   }
-  
+
   // MaJ tableau
-  if(ssk_size){
+  if(ssk_size > 0){
     ssk_checkup(skb, bssk, ssk_size);
     ssk_insertion_sort(bssk, ssk_size);
   }
@@ -429,7 +430,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
         max_value = tp->srtt;
 	tmp_ssk = (struct selected_sk *)kmalloc(sizeof(struct selected_sk), GFP_ATOMIC);
 	tmp_ssk->sk = sk;
-	if(!bssk){
+	if(bssk == NULL){
 	  tmp_ssk->next = tmp_ssk;
 	  bssk = tmp_ssk;
 	}
@@ -452,16 +453,19 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 	  tmp2_ssk->next = tmp_ssk;
 	  bssk = tmp_ssk;
 	}
-	for(it = bssk; it->next != bssk; it = it->next){
-	  if(tcp_sk(tmp_ssk->sk)->srtt > tcp_sk(it->sk)->srtt &&
-	     tcp_sk(tmp_ssk->sk)->srtt < tcp_sk(it->next->sk)->srtt){
-	    tmp_ssk->next = it->next;
-	    it->next = tmp_ssk;
-	    break;
+	else{
+	  for(it = bssk, size = ssk_size-1; size > 0; it = it->next, size--){
+	    if(tcp_sk(tmp_ssk->sk)->srtt < tcp_sk(it->next->sk)->srtt){
+	      tmp_ssk->next = it->next;
+	      it->next = tmp_ssk;
+	      break;
+	    }
 	  }
 	}
 	ssk_size++;
+	continue;
       }
+    
       // remplace un sk
       else{
         if(tcp_sk(sk)->srtt < tcp_sk(bssk->sk)->srtt){
@@ -469,17 +473,25 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 	  tmp_ssk->sk = sk;
 	  bssk = tmp_ssk;
 	}
-	for(it = bssk->next; it->next != bssk; it = it->next){
-	  if(tcp_sk(sk)->srtt < tcp_sk(it->sk)->srtt){
-	    for(; it != bssk; it = it->next){
-	      tmp_sk = it->sk;
-	      it->sk = sk;
-	      sk = tmp_sk;
+	else{
+	  for(it = bssk, size = ssk_size-1; size > 0; it = it->next, size--){
+	    if(tcp_sk(sk)->srtt < tcp_sk(it->next->sk)->srtt){
+	      // prendre le dernier et avant dernier
+	      tmp_ssk = bssk_prev(bssk);
+	      bssk = tmp_ssk;
+	      tmp2_ssk = bssk_prev(bssk);
+	      bssk = tmp_ssk->next;
+	      // inserer
+	      tmp_ssk->sk = sk;
+	      tmp2_ssk->next = tmp_ssk->next;
+	      tmp_ssk->next = it->next;
+	      it->next = tmp_ssk;
+	      break;
 	    }
-	    break;
 	  }
 	}
 	ssk_size++;
+	continue;
       }
     }
   }

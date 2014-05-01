@@ -447,10 +447,10 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 	  tmp_ssk->next = bssk;
 	  tmp2_ssk = bssk_prev(bssk);
 	  tmp2_ssk->next = tmp_ssk;
-	  ssk_size++;
 	}
+	ssk_size++;
+	continue;
       }
-      continue;
     }
     else{
       if(ssk_size < (int)K_BEST_SK){

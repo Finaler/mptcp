@@ -359,18 +359,19 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 					  struct sk_buff *skb,
 					  unsigned int *mss_now)
 {
+  // static var
   static struct selected_sk *bssk = NULL;
   static struct selected_sk *ssk = NULL;
   static int ssk_size = 0;
   static int ssk_send_wnd = 0;
 
+  // no backup, min_time_to_peer got with bssk, 
   struct mptcp_cb *mpcb = tcp_sk(meta_sk)->mpcb;
-  struct sock *sk, *bestsk = NULL;// *lowpriosk = NULL, *backupsk = NULL;
-  //unsigned int mss = 0, mss_lowprio = 0, mss_backup = 0;
-  //u32 min_time_to_peer = 0xffffffff, lowprio_min_time_to_peer = 0xffffffff;
-  //int cnt_backups = 0;
+  struct sock *sk, *bestsk = NULL;
+  unsigned int mss = 0;
   struct selected_sk *tmp_ssk, *tmp2_ssk, *it;
   struct tcp_sock *tp;
+
   int this_mss, size;
   u32 max_value;
   
@@ -401,6 +402,14 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
       ssk_send_wnd--;
       continue;
     }
+    if (!mptcp_is_available(ssk->sk, skb, &this_mss))
+      continue;
+    if (mptcp_dont_reinject_skb(tcp_sk(ssk->sk), skb))
+      continue;
+
+    if(mss_now)
+      *mss_now = this_mss;
+
     tmp_ssk = ssk;
     ssk = ssk->next;
     return tmp_ssk->sk;
@@ -472,6 +481,7 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
 	  tmp_ssk = bssk_prev(bssk);
 	  tmp_ssk->sk = sk;
 	  bssk = tmp_ssk;
+	  mss = this_mss;
 	}
 	else{
 	  for(it = bssk, size = ssk_size-1; size > 0; it = it->next, size--){
@@ -495,6 +505,10 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
       }
     }
   }
+
+  if(mss_now)
+    *mss_now = mss;
+
   ssk = bssk->next;
   ssk_send_wnd = ssk_size-1;
   return bssk->sk;

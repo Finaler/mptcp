@@ -365,11 +365,11 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
   static int ssk_send_wnd = 0;
 
   struct mptcp_cb *mpcb = tcp_sk(meta_sk)->mpcb;
-  struct sock *sk, *bestsk = NULL, *tmp_sk;// *lowpriosk = NULL, *backupsk = NULL;
+  struct sock *sk, *bestsk = NULL;// *lowpriosk = NULL, *backupsk = NULL;
   //unsigned int mss = 0, mss_lowprio = 0, mss_backup = 0;
   //u32 min_time_to_peer = 0xffffffff, lowprio_min_time_to_peer = 0xffffffff;
   //int cnt_backups = 0;
-  struct selected_sk *tmp_ssk, *tmp2_ssk, *tmp3_ssk, *it;
+  struct selected_sk *tmp_ssk, *tmp2_ssk, *it;
   struct tcp_sock *tp;
   int this_mss, size;
   u32 max_value;

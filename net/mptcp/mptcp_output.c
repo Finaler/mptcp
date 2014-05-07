@@ -403,8 +403,12 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
       continue;
     }
     if (!mptcp_is_available(ssk->sk, skb, &this_mss))
+      ssk = ssk->next;
+      ssk_send_wnd--;
       continue;
     if (mptcp_dont_reinject_skb(tcp_sk(ssk->sk), skb))
+      ssk = ssk->next;
+      ssk_send_wnd--;
       continue;
 
     if(mss_now)

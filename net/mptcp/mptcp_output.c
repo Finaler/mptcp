@@ -1,4 +1,4 @@
-/*
+x/*
  *	MPTCP implementation - Sending side
  *
  *	Initial Design & Implementation:
@@ -355,6 +355,12 @@ static int belongto_ssk(struct sock *sk, struct selected_sk *bssk, int ssk_size)
   return 0;
 }
 
+/* DBG :
+  USER MODE LINUX (UML) 
+  make ARCH=um
+  Qemu qemu -kernel ... -initramfs /boot/... -serial ..
+ */
+
 static struct sock *get_available_subflow(struct sock *meta_sk,
 					  struct sk_buff *skb,
 					  unsigned int *mss_now)
@@ -406,10 +412,12 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
       ssk = ssk->next;
       ssk_send_wnd--;
       continue;
-    if (mptcp_dont_reinject_skb(tcp_sk(ssk->sk), skb))
-      ssk = ssk->next;
-      ssk_send_wnd--;
-      continue;
+      /*
+	if (mptcp_dont_reinject_skb(tcp_sk(ssk->sk), skb))
+	ssk = ssk->next;
+	ssk_send_wnd--;
+	continue;
+      */
 
     if(mss_now)
       *mss_now = this_mss;
@@ -433,9 +441,10 @@ static struct sock *get_available_subflow(struct sock *meta_sk,
       continue;
     if (!mptcp_is_available(sk, skb, &this_mss))
       continue;
-    if (mptcp_dont_reinject_skb(tp, skb))
+    /*
+      if (mptcp_dont_reinject_skb(tp, skb))
       continue;
-    
+    */
     // compare srtt
     if(tp->srtt > max_value){
       // s'il n'y a pas K chemins occupés
